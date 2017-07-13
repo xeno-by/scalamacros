@@ -130,7 +130,7 @@ lazy val sharedSettings = Def.settings(
     }
   },
   organization := "org.scalamacros",
-  scalacOptions ++= Seq("-deprecation", "-feature", "-unchecked", "-Xfatal-warnings"),
+  scalacOptions ++= Seq("-deprecation", "-feature", "-unchecked", "-Xfatal-warnings", "-language:experimental.macros"),
   logBuffered := false,
   incOptions := incOptions.value.withLogRecompileOnMacro(false),
   updateOptions := updateOptions.value.withCachedResolution(true),

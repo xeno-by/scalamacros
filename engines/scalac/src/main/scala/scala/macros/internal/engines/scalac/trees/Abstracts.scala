@@ -192,7 +192,9 @@ trait Abstracts extends scala.macros.trees.Abstracts with Positions { self: Univ
           if (targs.nonEmpty) method = g.TypeApply(method, targs).setPos(op.pos)
           g.Apply(method, args)
         } else {
-          ???
+          var method: g.Tree = g.Select(args.head, op.toGTermName).setPos(op.pos)
+          if (targs.nonEmpty) method = g.TypeApply(method, targs).setPos(op.pos)
+          g.Apply(method, lhs :: Nil)
         }
       }
       def unapply(gtree: Any): Option[(Term, Term.Name, List[Type], List[Term])] = ???
@@ -239,7 +241,7 @@ trait Abstracts extends scala.macros.trees.Abstracts with Positions { self: Univ
     }
 
     object TermIf extends TermIfCompanion {
-      def apply(cond: Term, thenp: Term, elsep: Term): Term = ???
+      def apply(cond: Term, thenp: Term, elsep: Term): Term = g.If(cond, thenp, elsep)
       def unapply(gtree: Any): Option[(Term, Term, Term)] = ???
     }
 
