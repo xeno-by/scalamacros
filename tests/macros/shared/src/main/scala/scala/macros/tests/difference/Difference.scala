@@ -13,13 +13,13 @@ object Difference {
       val fnName = f.name.value
       val v1 = Term.fresh(s"${fnName}1")
       val v2 = Term.fresh(s"${fnName}2")
+      println(f.info.=:=(Type.Name("String")))
       q"""
            val $v1 = $lastState.${Term.Name(fnName)}
            val $v2 = $newState.${Term.Name(fnName)}
            if($v1 != $v2 ) $buff += DiffValue($v1, $v2)
         """
     }
-
     q"""val $buff = scala.collection.mutable.ListBuffer[DiffValue]()
                 ..$body
         Diff(Option(${Lit.String(A.toString)}), $buff.toList)"""
