@@ -13,6 +13,6 @@ class DifferenceTest {
   @Test
   def simpleCaseClassAndPrimitives(): Unit = {
     val diff = Difference(User("Andrey", "Ivanov"), User("Ivanov", "Andrey", 1, true))
-    assertEquals(Diff(Some("User"), List(DiffValue("Andrey", "Ivanov"), DiffValue("Ivanov", "Andrey"), DiffValue(false, true))), diff)
+    assertEquals(Diff(Some("DifferenceTest.this.User"), List(DiffValue("Andrey", "Ivanov"), DiffValue("Ivanov", "Andrey"), DiffValue(false, true))), diff)
   }
 }

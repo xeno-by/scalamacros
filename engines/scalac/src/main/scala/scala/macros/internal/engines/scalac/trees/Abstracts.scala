@@ -619,16 +619,7 @@ trait Abstracts extends scala.macros.trees.Abstracts with Positions { self: Univ
           ctor: Ctor.Primary,
           templ: Template): Defn.Class = ???
       def unapply(gtree: Any): Option[(List[Mod], Type.Name, List[Type.Param], Ctor.Primary, Template)] = {
-        gtree match {
-          case t: g.TypeTree =>
-            val symbol = t.symbol
-            val mods = new mutable.ListBuffer[Mod]()
-            if(symbol.isCase) mods.+=(ModCase())
-            if(symbol.isAbstractClass) mods.+=(ModAbstract())
-            val tp = symbol.decodedName
-            None
-          case _ => None
-        }
+       ???
       }
     }
 
