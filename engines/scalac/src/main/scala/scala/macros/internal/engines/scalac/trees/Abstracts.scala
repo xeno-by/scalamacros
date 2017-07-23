@@ -2,6 +2,7 @@ package scala.macros.internal
 package engines.scalac
 package trees
 
+import scala.collection.mutable
 import scala.reflect.internal.{Flags => gf}
 import scala.reflect.internal.util.Collections._
 import scala.macros.inputs._
@@ -197,7 +198,9 @@ trait Abstracts extends scala.macros.trees.Abstracts with Positions { self: Univ
           if (targs.nonEmpty) method = g.TypeApply(method, targs).setPos(op.pos)
           g.Apply(method, args)
         } else {
-          ???
+          var method: g.Tree = g.Select(args.head, op.toGTermName).setPos(op.pos)
+          if (targs.nonEmpty) method = g.TypeApply(method, targs).setPos(op.pos)
+          g.Apply(method, lhs :: Nil)
         }
       }
       def unapply(gtree: Any): Option[(Term, Term.Name, List[Type], List[Term])] = ???
@@ -209,7 +212,7 @@ trait Abstracts extends scala.macros.trees.Abstracts with Positions { self: Univ
     }
 
     object TermAssign extends TermAssignCompanion {
-      def apply(lhs: Term, rhs: Term): Term = ???
+      def apply(lhs: Term, rhs: Term): Term = g.Assign(lhs, rhs)
       def unapply(gtree: Any): Option[(Term, Term)] = ???
     }
 
@@ -244,7 +247,7 @@ trait Abstracts extends scala.macros.trees.Abstracts with Positions { self: Univ
     }
 
     object TermIf extends TermIfCompanion {
-      def apply(cond: Term, thenp: Term, elsep: Term): Term = ???
+      def apply(cond: Term, thenp: Term, elsep: Term): Term = g.If(cond, thenp, elsep)
       def unapply(gtree: Any): Option[(Term, Term, Term)] = ???
     }
 
@@ -624,9 +627,9 @@ trait Abstracts extends scala.macros.trees.Abstracts with Positions { self: Univ
           tparams: List[Type.Param],
           ctor: Ctor.Primary,
           templ: Template): Defn.Class = ???
-      def unapply(
-          gtree: Any): Option[(List[Mod], Type.Name, List[Type.Param], Ctor.Primary, Template)] =
-        ???
+      def unapply(gtree: Any): Option[(List[Mod], Type.Name, List[Type.Param], Ctor.Primary, Template)] = {
+       ???
+      }
     }
 
     object DefnTrait extends DefnTraitCompanion {

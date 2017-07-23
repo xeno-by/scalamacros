@@ -22,7 +22,7 @@ trait Abstracts extends scala.macros.semantic.Mirrors { self: Universe =>
     }
 
     def sym(id: String)(implicit m: Mirror): Symbol = {
-      ???
+      m.c.mirror.getRequiredClass(id).asInstanceOf[Symbol]
     }
 
     def symSyntax(p: Prettyprinter, sym: Symbol)(implicit m: Mirror): Unit = {
@@ -163,8 +163,9 @@ trait Abstracts extends scala.macros.semantic.Mirrors { self: Universe =>
     }
 
     implicit class XtensionToGType(tpe: Type) {
-      def toGType: g.Type = tpe match {
+      def toGType(implicit m: Mirror): g.Type = tpe match {
         case gtpt: g.TypeTree => gtpt.tpe
+        case tname: Name => Symbol(tname.value)(m).tpe
         case _ => ???
       }
     }
