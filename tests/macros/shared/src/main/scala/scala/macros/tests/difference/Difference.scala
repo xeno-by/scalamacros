@@ -19,7 +19,8 @@ object Difference {
            if($v1 != $v2 ) $buff += DiffValue($v1, $v2)
         """
     }
-    q"""val $buff = scala.collection.mutable.ListBuffer[DiffValue]()
+    q"""
+        val $buff = _root_.scala.collection.mutable.ListBuffer[DiffValue]()
                 ..$body
         Diff(Option(${Lit.String(A.toString)}), $buff.toList)"""
   }
