@@ -2,11 +2,12 @@ package scala.macros.internal
 package engines.scalac
 package semantic
 
-import scala.reflect.macros.contexts.Context
-import scala.reflect.internal.{Flags => gf}
 import scala.macros.internal.prettyprinters._
+import scala.reflect.internal.{Flags => gf}
+import scala.reflect.macros.contexts.Context
 
 trait Abstracts extends scala.macros.semantic.Mirrors { self: Universe =>
+
   case class Mirror(c: Context)
 
   trait MirrorAbstracts extends super.MirrorAbstracts {
@@ -41,30 +42,42 @@ trait Abstracts extends scala.macros.semantic.Mirrors { self: Universe =>
       val sym = {
         if (sym0.isModuleClass) sym0.asClass.module
         else if (sym0.isTypeSkolem) sym0.deSkolemize
-        else sym0.setterIn(sym0.owner).orElse(sym0.getterIn(sym0.owner).orElse(sym0))
+        else
+          sym0
+            .setterIn(sym0.owner)
+            .orElse(sym0.getterIn(sym0.owner).orElse(sym0))
       }
 
       def has(flag: Long): Boolean = sym.hasFlag(flag)
+
       val isObject = sym.isModule && !has(gf.PACKAGE) && sym.name != g.nme.PACKAGE
       val isAccessor = has(gf.ACCESSOR) || has(gf.PARAMACCESSOR)
 
       val definitionFlags = {
         var flags = 0L
-        def maybeValOrVar = (sym.isTerm && flags == 0L) || (has(gf.PARAMACCESSOR) && flags == PARAM)
-        if (sym.isMethod && !sym.isConstructor && !has(gf.MACRO) && !isAccessor) flags |= DEF
+
+        def maybeValOrVar =
+          (sym.isTerm && flags == 0L) || (has(gf.PARAMACCESSOR) && flags == PARAM)
+
+        if (sym.isMethod && !sym.isConstructor && !has(gf.MACRO) && !isAccessor)
+          flags |= DEF
         if (sym.isPrimaryConstructor) flags |= PRIMARYCTOR
-        if (sym.isConstructor && !sym.isPrimaryConstructor) flags |= SECONDARYCTOR
+        if (sym.isConstructor && !sym.isPrimaryConstructor)
+          flags |= SECONDARYCTOR
         if (has(gf.MACRO)) flags |= MACRO
         if (sym.isType && !sym.isClass && !has(gf.PARAM)) flags |= TYPE
-        if (sym.isTerm && (has(gf.PARAM) || has(gf.PARAMACCESSOR))) flags |= PARAM
+        if (sym.isTerm && (has(gf.PARAM) || has(gf.PARAMACCESSOR)))
+          flags |= PARAM
         if (sym.isType && has(gf.PARAM)) flags |= TYPEPARAM
         if (isObject) flags |= OBJECT
         if (has(gf.PACKAGE)) flags |= PACKAGE
         if (sym.isModule && sym.name == g.nme.PACKAGE) flags |= PACKAGEOBJECT
         if (sym.isClass && !has(gf.TRAIT)) flags |= CLASS
         if (sym.isClass && has(gf.TRAIT)) flags |= TRAIT
-        if (maybeValOrVar && (has(gf.MUTABLE) || g.nme.isSetterName(sym.name))) flags |= VAR
-        if (maybeValOrVar && !(has(gf.LOCAL) && has(gf.PARAMACCESSOR))) flags |= VAL
+        if (maybeValOrVar && (has(gf.MUTABLE) || g.nme.isSetterName(sym.name)))
+          flags |= VAR
+        if (maybeValOrVar && !(has(gf.LOCAL) && has(gf.PARAMACCESSOR)))
+          flags |= VAL
         flags
       }
 
@@ -165,6 +178,8 @@ trait Abstracts extends scala.macros.semantic.Mirrors { self: Universe =>
     implicit class XtensionToGType(tpe: Type) {
       def toGType(implicit m: Mirror): g.Type = tpe match {
         case gtpt: g.TypeTree => gtpt.tpe
+        case Type.Apply(tpt, targs) =>
+          g.appliedType(tpt.toGType, targs.map(_.toGType))
         case tname: Name => Symbol(tname.value)(m).tpe
         case _ => ???
       }
@@ -188,7 +203,10 @@ trait Abstracts extends scala.macros.semantic.Mirrors { self: Universe =>
 
     def typeMembers(tpe: Type, f0: SymFilter)(implicit m: Mirror): List[Denotation] = {
       val f1: SymFilter = sym => f0(sym) && !sym.name.endsWith(g.nme.LOCAL_SUFFIX_STRING)
-      tpe.toGType.members.sorted.filter(f1).map(sym => Denotation(tpe.toGType, sym)).toList
+      tpe.toGType.members.sorted
+        .filter(f1)
+        .map(sym => Denotation(tpe.toGType, sym))
+        .toList
     }
 
     def typeMembers(tpe: Type, name: String, f: SymFilter)(implicit m: Mirror): List[Denotation] = {
@@ -204,4 +222,5 @@ trait Abstracts extends scala.macros.semantic.Mirrors { self: Universe =>
       g.glb(tpes.map(_.toGType)).toType
     }
   }
+
 }

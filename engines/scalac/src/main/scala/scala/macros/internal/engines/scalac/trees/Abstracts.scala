@@ -2,13 +2,13 @@ package scala.macros.internal
 package engines.scalac
 package trees
 
+import scala.annotation.tailrec
 import scala.macros.inputs._
 import scala.macros.internal.engines.scalac.inputs._
 import scala.reflect.internal.util.Collections._
 import scala.reflect.internal.{Flags => gf}
 
-trait Abstracts extends scala.macros.trees.Abstracts with Positions {
-  self: Universe =>
+trait Abstracts extends scala.macros.trees.Abstracts with Positions { self: Universe =>
 
   import treeCompanions._
 
@@ -19,14 +19,14 @@ trait Abstracts extends scala.macros.trees.Abstracts with Positions {
 
     def nameUnapply(gtree: Any): Option[String] = gtree match {
       case tree: c.Name => Some(tree.value)
-      case _            => None
+      case _ => None
     }
 
     def litValue(lit: Lit): Any = litUnapply(lit).get
 
     def litUnapply(gtree: Any): Option[Any] = gtree match {
       case tree: g.Literal => Some(tree.value.value)
-      case _               => None
+      case _ => None
     }
 
     def memberName(member: Member): Name = member.name match {
@@ -59,7 +59,7 @@ trait Abstracts extends scala.macros.trees.Abstracts with Positions {
 
       def unapply(gtree: Any): Boolean = gtree match {
         case tree: c.NameAnonymous => true
-        case _                     => false
+        case _ => false
       }
     }
 
@@ -68,7 +68,7 @@ trait Abstracts extends scala.macros.trees.Abstracts with Positions {
 
       def unapply(gtree: Any): Option[String] = gtree match {
         case tree: c.NameIndeterminate => c.NameIndeterminate.unapply(tree)
-        case _                         => None
+        case _ => None
       }
     }
 
@@ -167,7 +167,7 @@ trait Abstracts extends scala.macros.trees.Abstracts with Positions {
 
       def unapply(gtree: Any): Option[String] = gtree match {
         case g.Ident(name: g.TermName) => Some(name.decoded)
-        case _                         => None
+        case _ => None
       }
     }
 
@@ -180,13 +180,15 @@ trait Abstracts extends scala.macros.trees.Abstracts with Positions {
     }
 
     object TermSelect extends TermSelectCompanion {
-      def apply(qual: Term, name: Term.Name): Term.Ref = g.Select(qual, name.toGTermName)
+      def apply(qual: Term, name: Term.Name): Term.Ref =
+        g.Select(qual, name.toGTermName)
 
       def unapply(gtree: Any): Option[(Term, Term.Name)] = ???
     }
 
     object TermInterpolate extends TermInterpolateCompanion {
-      def apply(prefix: Term.Name, parts: List[Lit], args: List[Term]): Term = ???
+      def apply(prefix: Term.Name, parts: List[Lit], args: List[Term]): Term =
+        ???
 
       def unapply(gtree: Any): Option[(Term.Name, List[Lit], List[Term])] = ???
     }
@@ -206,7 +208,22 @@ trait Abstracts extends scala.macros.trees.Abstracts with Positions {
     object TermApplyType extends TermApplyTypeCompanion {
       def apply(fun: Term, targs: List[Type]): Term = g.TypeApply(fun, targs)
 
-      def unapply(gtree: Any): Option[(Term, List[Type])] = ???
+      def unapply(gtree: Any): Option[(Term, List[Type])] = {
+        gtree match {
+          case tpe: g.TypeTree =>
+            @tailrec
+            def transformType(targs: List[g.Type], result: List[Type] = Nil): List[Type] = {
+              if (targs.isEmpty) result
+              else
+                transformType(
+                  targs.head.typeArgs,
+                  result.:+(Type.Name(targs.head.typeSymbol.name.decode)))
+            }
+
+            Option((Term.Name(tpe.symbol.name.decoded), transformType(tpe.tpe.typeArgs)))
+          case _ => None
+        }
+      }
     }
 
     object TermApplyInfix extends TermApplyInfixCompanion {
@@ -214,12 +231,15 @@ trait Abstracts extends scala.macros.trees.Abstracts with Positions {
         val isLeftAssoc = !op.value.endsWith(":")
         if (isLeftAssoc) {
           var method: g.Tree = g.Select(lhs, op.toGTermName).setPos(op.pos)
-          if (targs.nonEmpty) method = g.TypeApply(method, targs).setPos(op.pos)
+          if (targs.nonEmpty)
+            method = g.TypeApply(method, targs).setPos(op.pos)
           g.Apply(method, args)
         } else {
           val termName = g.freshTermName()(g.currentFreshNameCreator)
-          var method: g.Tree = g.Select(args.head, op.toGTermName).setPos(op.pos)
-          if (targs.nonEmpty) method = g.TypeApply(method, targs).setPos(op.pos)
+          var method: g.Tree =
+            g.Select(args.head, op.toGTermName).setPos(op.pos)
+          if (targs.nonEmpty)
+            method = g.TypeApply(method, targs).setPos(op.pos)
           g.Block(
             g.ValDef(g.Modifiers(g.Flag.ARTIFACT).&(g.Flag.SYNTHETIC), termName, g.TypeTree(), lhs),
             g.Apply(method, List(g.Ident(termName)))
@@ -255,7 +275,7 @@ trait Abstracts extends scala.macros.trees.Abstracts with Positions {
     }
 
     object TermAscribe extends TermAscribeCompanion {
-      def apply(expr: Term, tpe: Type): Term = ???
+      def apply(expr: Term, tpe: Type): Term = g.Typed(expr, tpe)
 
       def unapply(gtree: Any): Option[(Term, Type)] = ???
     }
@@ -267,7 +287,8 @@ trait Abstracts extends scala.macros.trees.Abstracts with Positions {
     }
 
     object TermTuple extends TermTupleCompanion {
-      def apply(args: List[Term]): Term = ???
+      def apply(args: List[Term]): Term =
+        g.Apply(g.Select(g.Ident("scala"), g.TermName("Tuple2")), args)
 
       def unapply(gtree: Any): Option[List[Term]] = ???
     }
@@ -279,19 +300,21 @@ trait Abstracts extends scala.macros.trees.Abstracts with Positions {
     }
 
     object TermIf extends TermIfCompanion {
-      def apply(cond: Term, thenp: Term, elsep: Term): Term = g.If(cond, thenp, elsep)
+      def apply(cond: Term, thenp: Term, elsep: Term): Term =
+        g.If(cond, thenp, elsep)
 
       def unapply(gtree: Any): Option[(Term, Term, Term)] = ???
     }
 
     object TermMatch extends TermMatchCompanion {
-      def apply(expr: Term, cases: List[Case]): Term = ???
+      def apply(expr: Term, cases: List[Case]): Term = g.Match(expr, cases)
 
       def unapply(gtree: Any): Option[(Term, List[Case])] = ???
     }
 
     object TermTry extends TermTryCompanion {
-      def apply(expr: Term, catchp: List[Case], finallyp: Option[Term]): Term = ???
+      def apply(expr: Term, catchp: List[Case], finallyp: Option[Term]): Term =
+        ???
 
       def unapply(gtree: Any): Option[(Term, List[Case], Option[Term])] = ???
     }
@@ -393,7 +416,7 @@ trait Abstracts extends scala.macros.trees.Abstracts with Positions {
 
       def unapply(gtree: Any): Option[String] = gtree match {
         case g.Ident(name: g.TypeName) => unapply(name.decoded)
-        case _                         => None
+        case _ => None
       }
     }
 
@@ -406,7 +429,8 @@ trait Abstracts extends scala.macros.trees.Abstracts with Positions {
     }
 
     object TypeSelect extends TypeSelectCompanion {
-      def apply(qual: Term.Ref, name: Type.Name): Type.Ref = g.Select(qual, name.toGTypeName)
+      def apply(qual: Term.Ref, name: Type.Name): Type.Ref =
+        g.Select(qual, name.toGTypeName)
 
       def unapply(gtree: Any): Option[(Term.Ref, Type.Name)] = ???
     }
@@ -424,9 +448,14 @@ trait Abstracts extends scala.macros.trees.Abstracts with Positions {
     }
 
     object TypeApply extends TypeApplyCompanion {
-      def apply(tpe: Type, args: List[Type]): Type = g.AppliedTypeTree(tpe, args)
+      def apply(tpe: Type, args: List[Type]): Type =
+        g.AppliedTypeTree(tpe, args)
 
-      def unapply(gtree: Any): Option[(Type, List[Type])] = ???
+      def unapply(gtree: Any): Option[(Type, List[Type])] =
+        gtree match {
+          case g.AppliedTypeTree(tpe, args) => Option((tpe, args))
+          case _ => None
+        }
     }
 
     object TypeApplyInfix extends TypeApplyInfixCompanion {
@@ -540,16 +569,17 @@ trait Abstracts extends scala.macros.trees.Abstracts with Positions {
     }
 
     object PatVar extends PatVarCompanion {
-      def apply(name: Term.Name): Pat.Var = g.Bind(name.toGTermName, g.Ident(g.nme.WILDCARD))
+      def apply(name: Term.Name): Pat.Var =
+        g.Bind(name.toGTermName, g.Ident(g.nme.WILDCARD))
 
       def unapply(gtree: Any): Option[Term.Name] = gtree match {
         case gtree: g.Bind => Some(gtree.toTermName)
-        case _             => None
+        case _ => None
       }
     }
 
     object PatWildcard extends PatWildcardCompanion {
-      def apply(): Pat = ???
+      def apply(): Pat = g.Ident(g.nme.WILDCARD)
 
       def unapply(gtree: Any): Boolean = ???
     }
@@ -561,7 +591,8 @@ trait Abstracts extends scala.macros.trees.Abstracts with Positions {
     }
 
     object PatBind extends PatBindCompanion {
-      def apply(lhs: Pat, rhs: Pat): Pat = ??? // TODO: auto-promote Term.Name in lhs
+      def apply(lhs: Pat, rhs: Pat): Pat =
+        ??? // TODO: auto-promote Term.Name in lhs
       def unapply(gtree: Any): Option[(Pat, Pat)] = ???
     }
 
@@ -572,13 +603,13 @@ trait Abstracts extends scala.macros.trees.Abstracts with Positions {
     }
 
     object PatTuple extends PatTupleCompanion {
-      def apply(args: List[Pat]): Pat = ???
-
+      def apply(args: List[Pat]): Pat =
+        g.Apply(g.Select(g.Ident("scala"), g.TermName("Tuple2")), args)
       def unapply(gtree: Any): Option[List[Pat]] = ???
     }
 
     object PatExtract extends PatExtractCompanion {
-      def apply(fun: Term, args: List[Pat]): Pat = ???
+      def apply(fun: Term, args: List[Pat]): Pat = g.Apply(fun, args)
 
       def unapply(gtree: Any): Option[(Term, List[Pat])] = ???
     }
@@ -590,7 +621,8 @@ trait Abstracts extends scala.macros.trees.Abstracts with Positions {
     }
 
     object PatInterpolate extends PatInterpolateCompanion {
-      def apply(prefix: Term.Name, parts: List[Lit], args: List[Pat]): Pat = ???
+      def apply(prefix: Term.Name, parts: List[Lit], args: List[Pat]): Pat =
+        ???
 
       def unapply(gtree: Any): Option[(Term.Name, List[Lit], List[Pat])] = ???
     }
@@ -602,18 +634,21 @@ trait Abstracts extends scala.macros.trees.Abstracts with Positions {
     }
 
     object PatTyped extends PatTypedCompanion {
-      def apply(lhs: Pat, rhs: Type): Pat = ??? // TODO: auto-promote Term.Name in lhs
+      def apply(lhs: Pat, rhs: Type): Pat =
+        ??? // TODO: auto-promote Term.Name in lhs
       def unapply(gtree: Any): Option[(Pat, Type)] = ???
     }
 
     object DeclVal extends DeclValCompanion {
-      def apply(mods: List[Mod], pats: List[Pat], decltpe: Type): Decl.Val = ???
+      def apply(mods: List[Mod], pats: List[Pat], decltpe: Type): Decl.Val =
+        ???
 
       def unapply(gtree: Any): Option[(List[Mod], List[Pat], Type)] = ???
     }
 
     object DeclVar extends DeclVarCompanion {
-      def apply(mods: List[Mod], pats: List[Pat], decltpe: Type): Decl.Var = ???
+      def apply(mods: List[Mod], pats: List[Pat], decltpe: Type): Decl.Var =
+        ???
 
       def unapply(gtree: Any): Option[(List[Mod], List[Pat], Type)] = ???
     }
@@ -660,7 +695,8 @@ trait Abstracts extends scala.macros.trees.Abstracts with Positions {
           mods: List[Mod],
           pats: List[Pat],
           decltpe: Option[Type],
-          rhs: Option[Term]): Defn.Var = ??? // TODO: auto-promote Term.Name in lhs
+          rhs: Option[Term]): Defn.Var =
+        ??? // TODO: auto-promote Term.Name in lhs
       def unapply(gtree: Any): Option[(List[Mod], List[Pat], Option[Type], Option[Term])] = ???
     }
 
@@ -695,10 +731,15 @@ trait Abstracts extends scala.macros.trees.Abstracts with Positions {
     }
 
     object DefnType extends DefnTypeCompanion {
-      def apply(mods: List[Mod], name: Type.Name, tparams: List[Type.Param], body: Type): Defn.Type =
+      def apply(
+          mods: List[Mod],
+          name: Type.Name,
+          tparams: List[Type.Param],
+          body: Type): Defn.Type =
         ???
 
-      def unapply(gtree: Any): Option[(List[Mod], Type.Name, List[Type.Param], Type)] = ???
+      def unapply(gtree: Any): Option[(List[Mod], Type.Name, List[Type.Param], Type)] =
+        ???
     }
 
     object DefnClass extends DefnClassCompanion {
@@ -733,12 +774,13 @@ trait Abstracts extends scala.macros.trees.Abstracts with Positions {
         g.ModuleDef(mods.toGModifiers, name.toGTermName, templ.toGTemplate(g.Modifiers(), Nil))
       }
 
-      def unapply(gtree: Any): Option[(List[Mod], Term.Name, Template)] = gtree match {
-        case tree @ g.ModuleDef(gmods, _, gtemplate) =>
-          Some((gmods.toModifiers, tree.toTermName, gtemplate.toTemplate))
-        case _ =>
-          None
-      }
+      def unapply(gtree: Any): Option[(List[Mod], Term.Name, Template)] =
+        gtree match {
+          case tree @ g.ModuleDef(gmods, _, gtemplate) =>
+            Some((gmods.toModifiers, tree.toTermName, gtemplate.toTemplate))
+          case _ =>
+            None
+        }
     }
 
     object PkgProper extends PkgProperCompanion {
@@ -772,12 +814,14 @@ trait Abstracts extends scala.macros.trees.Abstracts with Positions {
     }
 
     object Init extends InitCompanion {
-      def apply(tpe: Type, name: Name, argss: List[List[Term]]): Init = c.Init(tpe, name, argss)
+      def apply(tpe: Type, name: Name, argss: List[List[Term]]): Init =
+        c.Init(tpe, name, argss)
 
-      def unapply(gtree: Any): Option[(Type, Name, List[List[Term]])] = gtree match {
-        case tree: c.Init => c.Init.unapply(tree)
-        case _            => None
-      }
+      def unapply(gtree: Any): Option[(Type, Name, List[List[Term]])] =
+        gtree match {
+          case tree: c.Init => c.Init.unapply(tree)
+          case _ => None
+        }
     }
 
     implicit class XtensionInit(tree: Init) {
@@ -795,7 +839,8 @@ trait Abstracts extends scala.macros.trees.Abstracts with Positions {
     implicit class XtensionGInit(gtree: g.Tree) {
       def toInitFromGParent: Init = {
         val applied = g.treeInfo.Applied(gtree)
-        val name = NameAnonymous().copyAttrs(gtree).setPos(applied.callee.pos.focusEnd)
+        val name =
+          NameAnonymous().copyAttrs(gtree).setPos(applied.callee.pos.focusEnd)
         Init(applied.callee, name, applied.argss).copyAttrs(gtree)
       }
 
@@ -805,12 +850,14 @@ trait Abstracts extends scala.macros.trees.Abstracts with Positions {
     }
 
     object Self extends SelfCompanion {
-      def apply(name: Term.Name, decltpe: Option[Type]): Self = c.Self(name, decltpe)
+      def apply(name: Term.Name, decltpe: Option[Type]): Self =
+        c.Self(name, decltpe)
 
-      def unapply(gtree: Any): Option[(Term.Name, Option[Type])] = gtree match {
-        case tree: c.Self => c.Self.unapply(tree)
-        case _            => None
-      }
+      def unapply(gtree: Any): Option[(Term.Name, Option[Type])] =
+        gtree match {
+          case tree: c.Self => c.Self.unapply(tree)
+          case _ => None
+        }
     }
 
     implicit class XtensionSelf(self: Self) {
@@ -828,7 +875,7 @@ trait Abstracts extends scala.macros.trees.Abstracts with Positions {
         val name = gtree.toTermName
         val tpe = gtpt match {
           case g.TypeTree() => None;
-          case gtpt         => Some(gtpt)
+          case gtpt => Some(gtpt)
         }
         c.Self(name, tpe).copyAttrs(gtree)
       }
@@ -895,15 +942,19 @@ trait Abstracts extends scala.macros.trees.Abstracts with Positions {
           else {
             // undo conversion from (implicit ... ) to ()(implicit ... ) when it's the only parameter section
             val vparamssRestoredImplicits = ctorVparamss match {
-              case Nil :: (tail @ ((head :: _) :: _)) if head.mods.isImplicit => tail
-              case other                                                      => other
+              case Nil :: (tail @ ((head :: _) :: _)) if head.mods.isImplicit =>
+                tail
+              case other => other
             }
             // undo flag modifications by merging flag info from constructor args and fieldDefs
-            val modsMap = fieldDefs.map { case g.ValDef(mods, name, _, _) => name -> mods }.toMap
+            val modsMap = fieldDefs.map {
+              case g.ValDef(mods, name, _, _) => name -> mods
+            }.toMap
 
-            def ctorArgsCorrespondToFields = vparamssRestoredImplicits.flatten.forall { vd =>
-              modsMap.contains(vd.name)
-            }
+            def ctorArgsCorrespondToFields =
+              vparamssRestoredImplicits.flatten.forall { vd =>
+                modsMap.contains(vd.name)
+              }
 
             if (!ctorArgsCorrespondToFields) None
             else {
@@ -923,10 +974,11 @@ trait Abstracts extends scala.macros.trees.Abstracts with Positions {
         c.Template(early, inits, self, stats)
       }
 
-      def unapply(gtree: Any): Option[(List[Stat], List[Init], Self, List[Stat])] = gtree match {
-        case tree: c.Template => c.Template.unapply(tree)
-        case _                => None
-      }
+      def unapply(gtree: Any): Option[(List[Stat], List[Init], Self, List[Stat])] =
+        gtree match {
+          case tree: c.Template => c.Template.unapply(tree)
+          case _ => None
+        }
     }
 
     implicit class XtensionTemplate(tree: Template) {
@@ -936,7 +988,9 @@ trait Abstracts extends scala.macros.trees.Abstracts with Positions {
         val gparents = inits.map(_.toGParent)
         val gself = self.toGSelf
         val gstats = gearly ++ stats.toGStats
-        g.gen.mkTemplate(gparents, gself, gctorMods, gctorParamss, gstats).setPos(tree.pos)
+        g.gen
+          .mkTemplate(gparents, gself, gctorMods, gctorParamss, gstats)
+          .setPos(tree.pos)
       }
     }
 
@@ -970,7 +1024,7 @@ trait Abstracts extends scala.macros.trees.Abstracts with Positions {
 
       def unapply(gtree: Any): Option[Init] = gtree match {
         case tree: c.ModAnnot => c.ModAnnot.unapply(tree)
-        case _                => None
+        case _ => None
       }
     }
 
@@ -979,7 +1033,7 @@ trait Abstracts extends scala.macros.trees.Abstracts with Positions {
 
       def unapply(gtree: Any): Option[Ref] = gtree match {
         case tree: c.ModPrivate => c.ModPrivate.unapply(tree)
-        case _                  => None
+        case _ => None
       }
     }
 
@@ -988,7 +1042,7 @@ trait Abstracts extends scala.macros.trees.Abstracts with Positions {
 
       def unapply(gtree: Any): Option[Ref] = gtree match {
         case tree: c.ModProtected => c.ModProtected.unapply(tree)
-        case _                    => None
+        case _ => None
       }
     }
 
@@ -997,7 +1051,7 @@ trait Abstracts extends scala.macros.trees.Abstracts with Positions {
 
       def unapply(gtree: Any): Boolean = gtree match {
         case tree: c.ModImplicit => c.ModImplicit.unapply(tree)
-        case _                   => false
+        case _ => false
       }
     }
 
@@ -1006,7 +1060,7 @@ trait Abstracts extends scala.macros.trees.Abstracts with Positions {
 
       def unapply(gtree: Any): Boolean = gtree match {
         case tree: c.ModFinal => c.ModFinal.unapply(tree)
-        case _                => false
+        case _ => false
       }
     }
 
@@ -1015,7 +1069,7 @@ trait Abstracts extends scala.macros.trees.Abstracts with Positions {
 
       def unapply(gtree: Any): Boolean = gtree match {
         case tree: c.ModSealed => c.ModSealed.unapply(tree)
-        case _                 => false
+        case _ => false
       }
     }
 
@@ -1024,7 +1078,7 @@ trait Abstracts extends scala.macros.trees.Abstracts with Positions {
 
       def unapply(gtree: Any): Boolean = gtree match {
         case tree: c.ModOverride => c.ModOverride.unapply(tree)
-        case _                   => false
+        case _ => false
       }
     }
 
@@ -1033,7 +1087,7 @@ trait Abstracts extends scala.macros.trees.Abstracts with Positions {
 
       def unapply(gtree: Any): Boolean = gtree match {
         case tree: c.ModCase => c.ModCase.unapply(tree)
-        case _               => false
+        case _ => false
       }
     }
 
@@ -1042,7 +1096,7 @@ trait Abstracts extends scala.macros.trees.Abstracts with Positions {
 
       def unapply(gtree: Any): Boolean = gtree match {
         case tree: c.ModAbstract => c.ModAbstract.unapply(tree)
-        case _                   => false
+        case _ => false
       }
     }
 
@@ -1051,7 +1105,7 @@ trait Abstracts extends scala.macros.trees.Abstracts with Positions {
 
       def unapply(gtree: Any): Boolean = gtree match {
         case tree: c.ModCovariant => c.ModCovariant.unapply(tree)
-        case _                    => false
+        case _ => false
       }
     }
 
@@ -1060,7 +1114,7 @@ trait Abstracts extends scala.macros.trees.Abstracts with Positions {
 
       def unapply(gtree: Any): Boolean = gtree match {
         case tree: c.ModContravariant => c.ModContravariant.unapply(tree)
-        case _                        => false
+        case _ => false
       }
     }
 
@@ -1069,7 +1123,7 @@ trait Abstracts extends scala.macros.trees.Abstracts with Positions {
 
       def unapply(gtree: Any): Boolean = gtree match {
         case tree: c.ModLazy => c.ModLazy.unapply(tree)
-        case _               => false
+        case _ => false
       }
     }
 
@@ -1078,7 +1132,7 @@ trait Abstracts extends scala.macros.trees.Abstracts with Positions {
 
       def unapply(gtree: Any): Boolean = gtree match {
         case tree: c.ModValParam => c.ModValParam.unapply(tree)
-        case _                   => false
+        case _ => false
       }
     }
 
@@ -1087,7 +1141,7 @@ trait Abstracts extends scala.macros.trees.Abstracts with Positions {
 
       def unapply(gtree: Any): Boolean = gtree match {
         case tree: c.ModVarParam => c.ModVarParam.unapply(tree)
-        case _                   => false
+        case _ => false
       }
     }
 
@@ -1096,16 +1150,17 @@ trait Abstracts extends scala.macros.trees.Abstracts with Positions {
 
       def unapply(gtree: Any): Boolean = gtree match {
         case tree: c.ModInline => c.ModInline.unapply(tree)
-        case _                 => false
+        case _ => false
       }
     }
 
     object EnumeratorGenerator extends EnumeratorGeneratorCompanion {
-      def apply(pat: Pat, rhs: Term): Enumerator = c.EnumeratorGenerator(pat, rhs)
+      def apply(pat: Pat, rhs: Term): Enumerator =
+        c.EnumeratorGenerator(pat, rhs)
 
       def unapply(gtree: Any): Option[(Pat, Term)] = gtree match {
         case tree: c.EnumeratorGenerator => c.EnumeratorGenerator.unapply(tree)
-        case _                           => None
+        case _ => None
       }
     }
 
@@ -1114,7 +1169,7 @@ trait Abstracts extends scala.macros.trees.Abstracts with Positions {
 
       def unapply(gtree: Any): Option[(Pat, Term)] = gtree match {
         case tree: c.EnumeratorVal => c.EnumeratorVal.unapply(tree)
-        case _                     => None
+        case _ => None
       }
     }
 
@@ -1123,7 +1178,7 @@ trait Abstracts extends scala.macros.trees.Abstracts with Positions {
 
       def unapply(gtree: Any): Option[Term] = gtree match {
         case tree: c.EnumeratorGuard => c.EnumeratorGuard.unapply(tree)
-        case _                       => None
+        case _ => None
       }
     }
 
@@ -1134,12 +1189,14 @@ trait Abstracts extends scala.macros.trees.Abstracts with Positions {
     }
 
     object Importer extends ImporterCompanion {
-      def apply(ref: Term.Ref, importees: List[Importee]): Importer = c.Importer(ref, importees)
+      def apply(ref: Term.Ref, importees: List[Importee]): Importer =
+        c.Importer(ref, importees)
 
-      def unapply(gtree: Any): Option[(Term.Ref, List[Importee])] = gtree match {
-        case tree: c.Importer => c.Importer.unapply(tree)
-        case _                => None
-      }
+      def unapply(gtree: Any): Option[(Term.Ref, List[Importee])] =
+        gtree match {
+          case tree: c.Importer => c.Importer.unapply(tree)
+          case _ => None
+        }
     }
 
     object ImporteeWildcard extends ImporteeWildcardCompanion {
@@ -1147,7 +1204,7 @@ trait Abstracts extends scala.macros.trees.Abstracts with Positions {
 
       def unapply(gtree: Any): Boolean = gtree match {
         case tree: c.ImporteeWildcard => c.ImporteeWildcard.unapply(tree)
-        case _                        => false
+        case _ => false
       }
     }
 
@@ -1156,16 +1213,17 @@ trait Abstracts extends scala.macros.trees.Abstracts with Positions {
 
       def unapply(gtree: Any): Option[Name] = gtree match {
         case tree: c.ImporteeName => c.ImporteeName.unapply(tree)
-        case _                    => None
+        case _ => None
       }
     }
 
     object ImporteeRename extends ImporteeRenameCompanion {
-      def apply(name: Name, rename: Name): Importee = c.ImporteeRename(name, rename)
+      def apply(name: Name, rename: Name): Importee =
+        c.ImporteeRename(name, rename)
 
       def unapply(gtree: Any): Option[(Name, Name)] = gtree match {
         case tree: c.ImporteeRename => c.ImporteeRename.unapply(tree)
-        case _                      => None
+        case _ => None
       }
     }
 
@@ -1174,12 +1232,13 @@ trait Abstracts extends scala.macros.trees.Abstracts with Positions {
 
       def unapply(gtree: Any): Option[Name] = gtree match {
         case tree: c.ImporteeUnimport => c.ImporteeUnimport.unapply(tree)
-        case _                        => None
+        case _ => None
       }
     }
 
     object Case extends CaseCompanion {
-      def apply(pat: Pat, cond: Option[Term], body: Term): Case = ???
+      def apply(pat: Pat, cond: Option[Term], body: Term): Case =
+        cond.map(x => g.CaseDef(pat, x, body)).getOrElse(g.CaseDef(pat, body))
 
       def unapply(gtree: Any): Option[(Pat, Option[Term], Term)] = ???
     }
