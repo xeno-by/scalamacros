@@ -288,7 +288,7 @@ trait Abstracts extends scala.macros.trees.Abstracts with Positions { self: Univ
 
     object TermTuple extends TermTupleCompanion {
       def apply(args: List[Term]): Term =
-        g.Apply(g.Select(g.Ident("scala"), g.TermName("Tuple2")), args)
+        g.Apply(g.Select(g.Ident("scala"), g.TermName(s"Tuple${args.length}")), args)
 
       def unapply(gtree: Any): Option[List[Term]] = ???
     }
@@ -604,7 +604,7 @@ trait Abstracts extends scala.macros.trees.Abstracts with Positions { self: Univ
 
     object PatTuple extends PatTupleCompanion {
       def apply(args: List[Pat]): Pat =
-        g.Apply(g.Select(g.Ident("scala"), g.TermName("Tuple2")), args)
+        g.Apply(g.Select(g.Ident("scala"), g.TermName(s"Tuple${args.length}")), args)
       def unapply(gtree: Any): Option[List[Pat]] = ???
     }
 
