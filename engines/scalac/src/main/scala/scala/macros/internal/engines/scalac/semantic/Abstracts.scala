@@ -6,7 +6,8 @@ import scala.macros.internal.prettyprinters._
 import scala.reflect.internal.{Flags => gf}
 import scala.reflect.macros.contexts.Context
 
-trait Abstracts extends scala.macros.semantic.Mirrors { self: Universe =>
+trait Abstracts extends scala.macros.semantic.Mirrors {
+  self: Universe =>
 
   case class Mirror(c: Context)
 
@@ -162,7 +163,7 @@ trait Abstracts extends scala.macros.semantic.Mirrors { self: Universe =>
     }
 
     def denotMembers(denot: Denotation, name: String, f: SymFilter)(
-        implicit m: Mirror): List[Denotation] = {
+      implicit m: Mirror): List[Denotation] = {
       typeMembers(denotInfo(denot), name, f)
     }
 
@@ -178,8 +179,11 @@ trait Abstracts extends scala.macros.semantic.Mirrors { self: Universe =>
     implicit class XtensionToGType(tpe: Type) {
       def toGType(implicit m: Mirror): g.Type = tpe match {
         case gtpt: g.TypeTree => gtpt.tpe
-        case Type.Apply(tpt, targs) =>
-          g.appliedType(tpt.toGType, targs.map(_.toGType))
+        case gtpt: g.AppliedTypeTree => g.appliedType(gtpt.tpt.toGType, gtpt.args.map(_.toGType))
+        case Type.Apply(tpt, targs) => g.appliedType(tpt.toGType, targs.map(_.toGType))
+        case Type.Select(tref, tname) =>
+          println(g.Select(tref, g.TypeName(tname.value)).qualifier.tpe)
+          g.Select(tref, g.TypeName(tname.value)).tpe
         case tname: Name => Symbol(tname.value)(m).tpe
         case _ => ???
       }

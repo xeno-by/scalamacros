@@ -8,6 +8,6 @@ trait TreeStructure { self: Universe =>
 
   private[macros] implicit def treeStructure[T <: Tree]: Structure[T] = Structure { (p, tree) =>
     // TODO: implement this
-    ???
+   ???
   }
 }

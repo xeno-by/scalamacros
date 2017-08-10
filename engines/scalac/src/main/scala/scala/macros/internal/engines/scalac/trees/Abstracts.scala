@@ -8,7 +8,8 @@ import scala.macros.internal.engines.scalac.inputs._
 import scala.reflect.internal.util.Collections._
 import scala.reflect.internal.{Flags => gf}
 
-trait Abstracts extends scala.macros.trees.Abstracts with Positions { self: Universe =>
+trait Abstracts extends scala.macros.trees.Abstracts with Positions {
+  self: Universe =>
 
   import treeCompanions._
 
@@ -393,10 +394,10 @@ trait Abstracts extends scala.macros.trees.Abstracts with Positions { self: Univ
 
     object TermParam extends TermParamCompanion {
       def apply(
-          mods: List[Mod],
-          name: Term.Name,
-          decltpe: Option[Type],
-          default: Option[Term]): Term.Param = {
+                 mods: List[Mod],
+                 name: Term.Name,
+                 decltpe: Option[Type],
+                 default: Option[Term]): Term.Param = {
         val gtpt = decltpe.getOrElse(g.TypeTree())
         val gdefault = default.getOrElse(g.EmptyTree)
         g.ValDef(mods.toGModifiers | gf.PARAM, name.toGTermName, gtpt, gdefault)
@@ -432,7 +433,11 @@ trait Abstracts extends scala.macros.trees.Abstracts with Positions { self: Univ
       def apply(qual: Term.Ref, name: Type.Name): Type.Ref =
         g.Select(qual, name.toGTypeName)
 
-      def unapply(gtree: Any): Option[(Term.Ref, Type.Name)] = ???
+      def unapply(gtree: Any): Option[(Term.Ref, Type.Name)] =
+        gtree match {
+          case g.Select(qual, name) => Option(qual.asInstanceOf[Term.Ref], Type.Name(name.decoded))
+          case _ => None
+        }
     }
 
     object TypeProject extends TypeProjectCompanion {
@@ -501,7 +506,11 @@ trait Abstracts extends scala.macros.trees.Abstracts with Positions { self: Univ
     }
 
     object TypeExistential extends TypeExistentialCompanion {
-      def apply(tpe: Type, stats: List[Stat]): Type = ???
+      def apply(tpe: Type, stats: List[Stat]): Type = {
+        val z = g.ExistentialTypeTree(tpe, stats.map(_.asInstanceOf[g.MemberDef]))
+        println(z)
+        z
+      }
 
       def unapply(gtree: Any): Option[(Type, List[Stat])] = ???
     }
@@ -513,13 +522,24 @@ trait Abstracts extends scala.macros.trees.Abstracts with Positions { self: Univ
     }
 
     object TypePlaceholder extends TypePlaceholderCompanion {
-      def apply(bounds: Type.Bounds): Type = ???
+      def apply(bounds: Type.Bounds): Type =
+        g.TypeDef(g.Modifiers(gf.DEFERRED), Term.fresh().name.toTypeName, Nil, bounds.asInstanceOf[g.TypeBoundsTree])
 
       def unapply(gtree: Any): Option[Type.Bounds] = ???
     }
 
     object TypeBounds extends TypeBoundsCompanion {
-      def apply(lo: Option[Type], hi: Option[Type]): Type.Bounds = ???
+      def apply(lo: Option[Type], hi: Option[Type]): Type.Bounds = {
+        println("=======================")
+        println(lo.get.getClass)
+        println("=======================")
+        (lo, hi) match {
+          case (Some(l), Some(h)) => g.TypeBoundsTree(g.TypeBounds(l.tpe, h.tpe))
+          case (Some(l), None) => g.TypeBoundsTree(g.TypeBounds.lower(l.tpe))
+          case (None, Some(h)) => g.TypeBoundsTree(g.TypeBounds.upper(h.tpe))
+          case (None, None) => g.TypeBoundsTree(g.TypeBounds.empty)
+        }
+      }
 
       def unapply(gtree: Any): Option[(Option[Type], Option[Type])] = ???
     }
@@ -556,15 +576,15 @@ trait Abstracts extends scala.macros.trees.Abstracts with Positions { self: Univ
 
     object TypeParam extends TypeParamCompanion {
       def apply(
-          mods: List[Mod],
-          name: Type.Name,
-          tparams: List[Type.Param],
-          tbounds: Type.Bounds,
-          vbounds: List[Type],
-          cbounds: List[Type]): Type.Param = ???
+                 mods: List[Mod],
+                 name: Type.Name,
+                 tparams: List[Type.Param],
+                 tbounds: Type.Bounds,
+                 vbounds: List[Type],
+                 cbounds: List[Type]): Type.Param = ???
 
       def unapply(gtree: Any)
-        : Option[(List[Mod], Type.Name, List[Type.Param], Type.Bounds, List[Type], List[Type])] =
+      : Option[(List[Mod], Type.Name, List[Type.Param], Type.Bounds, List[Type], List[Type])] =
         ???
     }
 
@@ -605,6 +625,7 @@ trait Abstracts extends scala.macros.trees.Abstracts with Positions { self: Univ
     object PatTuple extends PatTupleCompanion {
       def apply(args: List[Pat]): Pat =
         g.Apply(g.Select(g.Ident("scala"), g.TermName(s"Tuple${args.length}")), args)
+
       def unapply(gtree: Any): Option[List[Pat]] = ???
     }
 
@@ -655,22 +676,22 @@ trait Abstracts extends scala.macros.trees.Abstracts with Positions { self: Univ
 
     object DeclDef extends DeclDefCompanion {
       def apply(
-          mods: List[Mod],
-          name: Term.Name,
-          tparams: List[Type.Param],
-          paramss: List[List[Term.Param]],
-          decltpe: Type): Decl.Def = ???
+                 mods: List[Mod],
+                 name: Term.Name,
+                 tparams: List[Type.Param],
+                 paramss: List[List[Term.Param]],
+                 decltpe: Type): Decl.Def = ???
 
       def unapply(gtree: Any)
-        : Option[(List[Mod], Term.Name, List[Type.Param], List[List[Term.Param]], Type)] = ???
+      : Option[(List[Mod], Term.Name, List[Type.Param], List[List[Term.Param]], Type)] = ???
     }
 
     object DeclType extends DeclTypeCompanion {
       def apply(
-          mods: List[Mod],
-          name: Type.Name,
-          tparams: List[Type.Param],
-          bounds: Type.Bounds): Decl.Type = ???
+                 mods: List[Mod],
+                 name: Type.Name,
+                 tparams: List[Type.Param],
+                 bounds: Type.Bounds): Decl.Type = ???
 
       def unapply(gtree: Any): Option[(List[Mod], Type.Name, List[Type.Param], Type.Bounds)] = ???
     }
@@ -678,7 +699,7 @@ trait Abstracts extends scala.macros.trees.Abstracts with Positions { self: Univ
     object DefnVal extends DefnValCompanion {
       def apply(mods: List[Mod], pats: List[Pat], decltpe: Option[Type], rhs: Term): Defn.Val = {
         pats match {
-          case List(name @ g.Ident(_: g.TermName)) =>
+          case List(name@g.Ident(_: g.TermName)) =>
             apply(mods, List(Pat.Var(name.toTermName).setPos(name.pos)), decltpe, rhs)
           case List(Pat.Var(name)) =>
             g.ValDef(mods.toGModifiers, name.toGTermName, decltpe.getOrElse(g.TypeTree()), rhs)
@@ -692,22 +713,22 @@ trait Abstracts extends scala.macros.trees.Abstracts with Positions { self: Univ
 
     object DefnVar extends DefnVarCompanion {
       def apply(
-          mods: List[Mod],
-          pats: List[Pat],
-          decltpe: Option[Type],
-          rhs: Option[Term]): Defn.Var =
+                 mods: List[Mod],
+                 pats: List[Pat],
+                 decltpe: Option[Type],
+                 rhs: Option[Term]): Defn.Var =
         ??? // TODO: auto-promote Term.Name in lhs
       def unapply(gtree: Any): Option[(List[Mod], List[Pat], Option[Type], Option[Term])] = ???
     }
 
     object DefnDef extends DefnDefCompanion {
       def apply(
-          mods: List[Mod],
-          name: Term.Name,
-          tparams: List[Type.Param],
-          paramss: List[List[Term.Param]],
-          decltpe: Option[Type],
-          body: Term): Defn.Def = {
+                 mods: List[Mod],
+                 name: Term.Name,
+                 tparams: List[Type.Param],
+                 paramss: List[List[Term.Param]],
+                 decltpe: Option[Type],
+                 body: Term): Defn.Def = {
         val gparamss = paramss // TODO: view bounds, context bounds
         val gtpt = decltpe.getOrElse(g.TypeTree())
         g.DefDef(mods.toGModifiers, name.toGTermName, tparams, gparamss, gtpt, body)
@@ -719,12 +740,12 @@ trait Abstracts extends scala.macros.trees.Abstracts with Positions { self: Univ
 
     object DefnMacro extends DefnMacroCompanion {
       def apply(
-          mods: List[Mod],
-          name: Term.Name,
-          tparams: List[Type.Param],
-          paramss: List[List[Term.Param]],
-          decltpe: Option[Type],
-          body: Term): Defn.Macro = ???
+                 mods: List[Mod],
+                 name: Term.Name,
+                 tparams: List[Type.Param],
+                 paramss: List[List[Term.Param]],
+                 decltpe: Option[Type],
+                 body: Term): Defn.Macro = ???
 
       def unapply(gtree: Any): Option[
         (List[Mod], Term.Name, List[Type.Param], List[List[Term.Param]], Option[Type], Term)] = ???
@@ -732,10 +753,10 @@ trait Abstracts extends scala.macros.trees.Abstracts with Positions { self: Univ
 
     object DefnType extends DefnTypeCompanion {
       def apply(
-          mods: List[Mod],
-          name: Type.Name,
-          tparams: List[Type.Param],
-          body: Type): Defn.Type =
+                 mods: List[Mod],
+                 name: Type.Name,
+                 tparams: List[Type.Param],
+                 body: Type): Defn.Type =
         ???
 
       def unapply(gtree: Any): Option[(List[Mod], Type.Name, List[Type.Param], Type)] =
@@ -744,28 +765,28 @@ trait Abstracts extends scala.macros.trees.Abstracts with Positions { self: Univ
 
     object DefnClass extends DefnClassCompanion {
       def apply(
-          mods: List[Mod],
-          name: Type.Name,
-          tparams: List[Type.Param],
-          ctor: Ctor.Primary,
-          templ: Template): Defn.Class = ???
+                 mods: List[Mod],
+                 name: Type.Name,
+                 tparams: List[Type.Param],
+                 ctor: Ctor.Primary,
+                 templ: Template): Defn.Class = ???
 
       def unapply(
-          gtree: Any): Option[(List[Mod], Type.Name, List[Type.Param], Ctor.Primary, Template)] = {
+                   gtree: Any): Option[(List[Mod], Type.Name, List[Type.Param], Ctor.Primary, Template)] = {
         ???
       }
     }
 
     object DefnTrait extends DefnTraitCompanion {
       def apply(
-          mods: List[Mod],
-          name: Type.Name,
-          tparams: List[Type.Param],
-          ctor: Ctor.Primary,
-          templ: Template): Defn.Trait = ???
+                 mods: List[Mod],
+                 name: Type.Name,
+                 tparams: List[Type.Param],
+                 ctor: Ctor.Primary,
+                 templ: Template): Defn.Trait = ???
 
       def unapply(
-          gtree: Any): Option[(List[Mod], Type.Name, List[Type.Param], Ctor.Primary, Template)] =
+                   gtree: Any): Option[(List[Mod], Type.Name, List[Type.Param], Ctor.Primary, Template)] =
         ???
     }
 
@@ -776,7 +797,7 @@ trait Abstracts extends scala.macros.trees.Abstracts with Positions { self: Univ
 
       def unapply(gtree: Any): Option[(List[Mod], Term.Name, Template)] =
         gtree match {
-          case tree @ g.ModuleDef(gmods, _, gtemplate) =>
+          case tree@g.ModuleDef(gmods, _, gtemplate) =>
             Some((gmods.toModifiers, tree.toTermName, gtemplate.toTemplate))
           case _ =>
             None
@@ -803,11 +824,11 @@ trait Abstracts extends scala.macros.trees.Abstracts with Positions { self: Univ
 
     object CtorSecondary extends CtorSecondaryCompanion {
       def apply(
-          mods: List[Mod],
-          name: Name,
-          paramss: List[List[Term.Param]],
-          init: Init,
-          stats: List[Stat]): Ctor.Secondary = ???
+                 mods: List[Mod],
+                 name: Name,
+                 paramss: List[List[Term.Param]],
+                 init: Init,
+                 stats: List[Stat]): Ctor.Secondary = ???
 
       def unapply(gtree: Any): Option[(List[Mod], Name, List[List[Term.Param]], Init, List[Stat])] =
         ???
@@ -886,20 +907,20 @@ trait Abstracts extends scala.macros.trees.Abstracts with Positions { self: Univ
       def unapply(gtree: g.Tree): Option[(g.Modifiers, List[List[g.ValDef]], List[g.Tree])] = {
         gtree match {
           case g.DefDef(
-              mods,
-              g.nme.MIXIN_CONSTRUCTOR,
-              _,
-              _,
-              _,
-              g.build.SyntacticBlock(lvdefs :+ _)) =>
+          mods,
+          g.nme.MIXIN_CONSTRUCTOR,
+          _,
+          _,
+          _,
+          g.build.SyntacticBlock(lvdefs :+ _)) =>
             Some((mods | gf.TRAIT, Nil, lvdefs))
           case g.DefDef(
-              mods,
-              g.nme.CONSTRUCTOR,
-              Nil,
-              vparamss,
-              _,
-              g.build.SyntacticBlock(lvdefs :+ _ :+ _)) =>
+          mods,
+          g.nme.CONSTRUCTOR,
+          Nil,
+          vparamss,
+          _,
+          g.build.SyntacticBlock(lvdefs :+ _ :+ _)) =>
             Some((mods, vparamss, lvdefs))
           case _ =>
             None
@@ -914,10 +935,10 @@ trait Abstracts extends scala.macros.trees.Abstracts with Positions { self: Univ
         val g.Template(parents, selfType, tbody) = gtree
 
         def result(
-            ctorMods: g.Modifiers,
-            vparamss: List[List[g.ValDef]],
-            edefs: List[g.Tree],
-            body: List[g.Tree]) =
+                    ctorMods: g.Modifiers,
+                    vparamss: List[List[g.ValDef]],
+                    edefs: List[g.Tree],
+                    body: List[g.Tree]) =
           Some((parents, selfType, ctorMods, vparamss, edefs, body))
 
         def indexOfCtor(trees: List[g.Tree]) =
@@ -933,7 +954,7 @@ trait Abstracts extends scala.macros.trees.Abstracts with Positions { self: Univ
           val (fieldDefs, UnCtor(ctorMods, ctorVparamss, lvdefs) :: body) =
             rest.splitAt(indexOfCtor(rest))
           val evdefs = gvdefs.zip(lvdefs).map {
-            case (gvdef @ g.ValDef(_, _, tpt: g.TypeTree, _), g.ValDef(_, _, _, rhs)) =>
+            case (gvdef@g.ValDef(_, _, tpt: g.TypeTree, _), g.ValDef(_, _, _, rhs)) =>
               g.copyValDef(gvdef)(tpt = tpt.original, rhs = rhs)
           }
           val edefs = evdefs ::: etdefs
@@ -942,7 +963,7 @@ trait Abstracts extends scala.macros.trees.Abstracts with Positions { self: Univ
           else {
             // undo conversion from (implicit ... ) to ()(implicit ... ) when it's the only parameter section
             val vparamssRestoredImplicits = ctorVparamss match {
-              case Nil :: (tail @ ((head :: _) :: _)) if head.mods.isImplicit =>
+              case Nil :: (tail@((head :: _) :: _)) if head.mods.isImplicit =>
                 tail
               case other => other
             }
