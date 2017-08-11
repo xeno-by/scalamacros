@@ -9,12 +9,14 @@ case class DiffValue(oldValue: String, newValue: String)
 object Difference {
   inline def apply[A <: Product](lastState: A, newState: A): Diff = meta {
     val buff = Term.fresh("buff")
-    println(q"${Type.Apply(Type.Name("_root_.scala.Option"), List(Type.Placeholder(Type.Bounds(None, None))))}")
+
+    val p = Type.Placeholder(Type.Bounds(Some(Type.Name("_root_.scala.Int")), None))
+    val ta = Type.Apply(Type.Name("_root_.scala.Option"), List(p))
     val body = A.vals.filter(_.isCase).map { f =>
       val fnName = f.name.value
       val v1 = Term.fresh(s"${fnName}1")
       val v2 = Term.fresh(s"${fnName}2")
-      val isOption = false//f.info.<:<(Type.Existential(Type.Name("_root_.scala.Option"), List(Type.Placeholder(Type.Bounds(Some(Type.Name("_root_.scala.Int")), None)).asInstanceOf[Stat])))
+      val isOption = false
       q"""
            val $v1 = $lastState.${Term.Name(fnName)}
            val $v2 = $newState.${Term.Name(fnName)}
@@ -35,8 +37,3 @@ object Difference {
         Diff(Option(${Lit.String(A.toString)}), $buff.toList)"""
   }
 }
-
-//ExistentialTypeTree(
-//  AppliedTypeTree(Ident(TypeName("Option")), List(Ident(TypeName("_$1")))),
-//  List(TypeDef(Modifiers(DEFERRED | SYNTHETIC), TypeName("_$1"), List(), TypeBoundsTree(EmptyTree, EmptyTree)))
-//)

@@ -454,6 +454,7 @@ trait Abstracts extends scala.macros.trees.Abstracts with Positions {
 
     object TypeApply extends TypeApplyCompanion {
       def apply(tpe: Type, args: List[Type]): Type =
+        //if placeholder create exsitential
         g.AppliedTypeTree(tpe, args)
 
       def unapply(gtree: Any): Option[(Type, List[Type])] =
@@ -523,20 +524,17 @@ trait Abstracts extends scala.macros.trees.Abstracts with Positions {
 
     object TypePlaceholder extends TypePlaceholderCompanion {
       def apply(bounds: Type.Bounds): Type =
-        g.TypeDef(g.Modifiers(gf.DEFERRED), Term.fresh().name.toTypeName, Nil, bounds.asInstanceOf[g.TypeBoundsTree])
+        g.TypeDef(g.Modifiers(gf.DEFERRED), Term.fresh().name.toTypeName, Nil, bounds)
 
       def unapply(gtree: Any): Option[Type.Bounds] = ???
     }
 
     object TypeBounds extends TypeBoundsCompanion {
       def apply(lo: Option[Type], hi: Option[Type]): Type.Bounds = {
-        println("=======================")
-        println(lo.get.getClass)
-        println("=======================")
         (lo, hi) match {
-          case (Some(l), Some(h)) => g.TypeBoundsTree(g.TypeBounds(l.tpe, h.tpe))
-          case (Some(l), None) => g.TypeBoundsTree(g.TypeBounds.lower(l.tpe))
-          case (None, Some(h)) => g.TypeBoundsTree(g.TypeBounds.upper(h.tpe))
+          case (Some(l), Some(h)) => g.TypeBoundsTree(g.TypeBounds(l.toGType, h.toGType))
+          case (Some(l), None) => g.TypeBoundsTree(g.TypeBounds.lower(l.toGType))
+          case (None, Some(h)) => g.TypeBoundsTree(g.TypeBounds.upper(h.toGType))
           case (None, None) => g.TypeBoundsTree(g.TypeBounds.empty)
         }
       }

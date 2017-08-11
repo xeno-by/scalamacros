@@ -177,14 +177,17 @@ trait Abstracts extends scala.macros.semantic.Mirrors {
     }
 
     implicit class XtensionToGType(tpe: Type) {
-      def toGType(implicit m: Mirror): g.Type = tpe match {
+      def toGType: g.Type = tpe match {
         case gtpt: g.TypeTree => gtpt.tpe
         case gtpt: g.AppliedTypeTree => g.appliedType(gtpt.tpt.toGType, gtpt.args.map(_.toGType))
         case Type.Apply(tpt, targs) => g.appliedType(tpt.toGType, targs.map(_.toGType))
+        //if placeholder create existential
+        case Type.Apply(tpt, targs) => g.appliedType(tpt.toGType, targs.map(_.toGType))
+        //if NoSymbol crash
         case Type.Select(tref, tname) =>
-          println(g.Select(tref, g.TypeName(tname.value)).qualifier.tpe)
-          g.Select(tref, g.TypeName(tname.value)).tpe
-        case tname: Name => Symbol(tname.value)(m).tpe
+          g.typeRef(tname.symbol.owner.thisPrefix, tname.symbol, Nil)
+        //if NoSymbol crash
+        case tname: Name => tname.symbol.tpe
         case _ => ???
       }
     }
