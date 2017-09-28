@@ -24,6 +24,7 @@ trait Abstracts extends scala.macros.semantic.Mirrors {
     }
 
     def sym(id: String)(implicit m: Mirror): Symbol = {
+      //TODO trait loading
       m.c.mirror.getRequiredClass(id).asInstanceOf[Symbol]
     }
 
@@ -180,14 +181,16 @@ trait Abstracts extends scala.macros.semantic.Mirrors {
       def toGType: g.Type = tpe match {
         case gtpt: g.TypeTree => gtpt.tpe
         case gtpt: g.AppliedTypeTree => g.appliedType(gtpt.tpt.toGType, gtpt.args.map(_.toGType))
-        case Type.Apply(tpt, targs) => g.appliedType(tpt.toGType, targs.map(_.toGType))
-        //if placeholder create existential
-        case Type.Apply(tpt, targs) => g.appliedType(tpt.toGType, targs.map(_.toGType))
-        //if NoSymbol crash
-        case Type.Select(tref, tname) =>
-          g.typeRef(tname.symbol.owner.thisPrefix, tname.symbol, Nil)
-        //if NoSymbol crash
-        case tname: Name => tname.symbol.tpe
+        case tname: Name =>
+          tname.symbol match {
+            case g.NoSymbol => g.abort(s"Could load symbol for type '$tname'")
+            case symbol@_ => symbol.tpe
+          }
+        case gtpt: g.TypeDef =>
+          gtpt.rhs match {
+            case g.TypeBoundsTree(lo, hi) => g.BoundedWildcardType(g.TypeBounds(lo.toGType, hi.toGType))
+            case _ => g.WildcardType
+          }
         case _ => ???
       }
     }

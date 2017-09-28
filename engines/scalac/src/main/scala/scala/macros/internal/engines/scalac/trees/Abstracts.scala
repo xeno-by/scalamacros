@@ -12,6 +12,8 @@ trait Abstracts extends scala.macros.trees.Abstracts with Positions {
   self: Universe =>
 
   import treeCompanions._
+  //TODO Hot fix. Have to check how to avoid explicit import since it works in semantic trees without import
+  import abstracts._
 
   trait TreeAbstracts extends super.TreeAbstracts {
     def treePos(tree: Tree): Position = tree.pos
@@ -435,7 +437,8 @@ trait Abstracts extends scala.macros.trees.Abstracts with Positions {
 
       def unapply(gtree: Any): Option[(Term.Ref, Type.Name)] =
         gtree match {
-          case g.Select(qual, name) => Option(qual.asInstanceOf[Term.Ref], Type.Name(name.decoded))
+          //fix casting
+          case g.Select(qual, name) => Option((qual.asInstanceOf[Term.Ref], Type.Name(name.decoded)))
           case _ => None
         }
     }
@@ -453,9 +456,10 @@ trait Abstracts extends scala.macros.trees.Abstracts with Positions {
     }
 
     object TypeApply extends TypeApplyCompanion {
-      def apply(tpe: Type, args: List[Type]): Type =
+      def apply(tpe: Type, args: List[Type]): Type = {
         //if placeholder create exsitential
         g.AppliedTypeTree(tpe, args)
+      }
 
       def unapply(gtree: Any): Option[(Type, List[Type])] =
         gtree match {
@@ -507,11 +511,7 @@ trait Abstracts extends scala.macros.trees.Abstracts with Positions {
     }
 
     object TypeExistential extends TypeExistentialCompanion {
-      def apply(tpe: Type, stats: List[Stat]): Type = {
-        val z = g.ExistentialTypeTree(tpe, stats.map(_.asInstanceOf[g.MemberDef]))
-        println(z)
-        z
-      }
+      def apply(tpe: Type, stats: List[Stat]): Type = ???
 
       def unapply(gtree: Any): Option[(Type, List[Stat])] = ???
     }
